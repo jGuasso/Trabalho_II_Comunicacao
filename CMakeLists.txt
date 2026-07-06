@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.15)
 project(Trabalho_II_Comunicacao)
 
+# Exige C++17 (necessário para inline variables no crc.h)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 # Cria o executável do Emissor
 add_executable(emissor emissor.cpp net_compat.hpp)
 

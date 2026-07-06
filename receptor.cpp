@@ -1,5 +1,7 @@
 #include <iostream>
+#include <vector>
 #include "net_compat.hpp"
+#include "framing.hpp"
 
 int main() {
     if (!IniciarRede()) {
@@ -43,18 +45,28 @@ int main() {
             break;
         }
 
-        buffer[bytes_recebidos] = '\0';
-        std::cout << ">" << buffer << std::endl;
+        // Desempacotar o quadro recebido (framing)
+        std::vector<uint8_t> quadro_bruto(buffer, buffer + bytes_recebidos);
+        uint16_t tipo_recebido = 0;
+        std::string mensagem = desmontar_quadro(quadro_bruto, &tipo_recebido);
 
-        // Envia o ACK de volta para o remetente
-        std::string ack_msg = "ACK";
-        int bytes_enviados = sendto(sockfd, ack_msg.c_str(), ack_msg.length(), 0, 
+        if (mensagem.empty()) {
+            std::cerr << "[Receptor] Quadro inválido ou corrompido. Descartado (sem ACK)." << std::endl;
+            continue; // Não envia ACK para quadros corrompidos
+        }
+
+        std::cout << ">" << mensagem << std::endl;
+        imprimir_quadro_hex(quadro_bruto); // Depuração: exibe o quadro recebido
+
+        // Empacotar e enviar o ACK de volta para o remetente
+        std::vector<uint8_t> quadro_ack = montar_quadro("ACK", TIPO_ACK);
+        int bytes_enviados = sendto(sockfd, reinterpret_cast<const char*>(quadro_ack.data()), quadro_ack.size(), 0, 
                                     (const struct sockaddr*)&sender_addr, addr_len);
         
         if (bytes_enviados == SOCKET_ERROR) {
             std::cerr << "Erro ao enviar ACK. Codigo: " << GETSOCKETERRNO() << std::endl;
         } else {
-            std::cout << "[Receptor] ACK enviado." << std::endl;
+            std::cout << "[Receptor] ACK enviado (quadro de " << quadro_ack.size() << " bytes)." << std::endl;
         }
     }
 
