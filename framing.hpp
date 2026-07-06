@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <iostream>
 #include <cstring>
+#include "crc.h"
 
 /* =========================================
    CONSTANTES DO PROTOCOLO DE ENQUADRAMENTO
@@ -107,17 +108,69 @@ inline std::vector<uint8_t> byte_destuffing(const std::vector<uint8_t>& dados) {
 
 /* =========================================
    CRC (VERIFICAÇÃO DE ERROS)
+   Integração com o módulo crc.h
    ========================================= */
 
 /**
- * @brief Calcula o CRC-16 dos dados fornecidos.
+ * @brief Converte um vetor de bytes (uint8_t) para um vetor de bits (int).
+ * 
+ * Cada byte é expandido em 8 bits (MSB primeiro), que é o formato
+ * esperado pelas funções gera_crc() e verifica_crc() do módulo crc.h.
+ */
+inline std::vector<int> bytes_para_bits(const std::vector<uint8_t>& bytes) {
+    std::vector<int> bits;
+    bits.reserve(bytes.size() * 8);
+    for (uint8_t byte : bytes) {
+        for (int i = 7; i >= 0; i--) {
+            bits.push_back((byte >> i) & 1);
+        }
+    }
+    return bits;
+}
+
+/**
+ * @brief Converte um vetor de bits (int) para um vetor de bytes (uint8_t).
+ * 
+ * Agrupa cada 8 bits consecutivos em um byte (MSB primeiro).
+ * Se o número de bits não for múltiplo de 8, os bits finais
+ * incompletos são preenchidos com zeros à direita.
+ */
+inline std::vector<uint8_t> bits_para_bytes(const std::vector<int>& bits) {
+    std::vector<uint8_t> bytes;
+    for (size_t i = 0; i < bits.size(); i += 8) {
+        uint8_t byte = 0;
+        for (int j = 0; j < 8 && (i + j) < bits.size(); j++) {
+            byte = (byte << 1) | (bits[i + j] & 1);
+        }
+        bytes.push_back(byte);
+    }
+    return bytes;
+}
+
+/**
+ * @brief Calcula o CRC-16 dos dados fornecidos usando o módulo crc.h.
+ * 
+ * Converte os bytes para bits, chama gera_crc() do módulo do colega,
+ * e extrai os 16 bits finais (o CRC) como um uint16_t.
  * 
  * @param dados Vetor de bytes sobre os quais o CRC será calculado.
  * @return Valor CRC-16 de 2 bytes.
  */
 inline uint16_t calcular_crc16(const std::vector<uint8_t>& dados) {
-    // Adicionar lógica de CRC aqui
-    return 0x0000; // Placeholder — retorna 0 por enquanto
+    // Converte bytes para o formato de bits que o crc.h espera
+    std::vector<int> dados_bits = bytes_para_bits(dados);
+
+    // gera_crc retorna dados_originais + 16 bits de CRC no final
+    std::vector<int> resultado = gera_crc(dados_bits);
+
+    // Extrai os últimos 16 bits (o CRC gerado)
+    uint16_t crc = 0;
+    size_t inicio_crc = resultado.size() - 16;
+    for (size_t i = 0; i < 16; i++) {
+        crc = (crc << 1) | (resultado[inicio_crc + i] & 1);
+    }
+
+    return crc;
 }
 
 
@@ -248,20 +301,18 @@ inline std::string desmontar_quadro(const std::vector<uint8_t>& quadro_bruto, ui
         *tipo_recebido = tipo;
     }
 
-    // CRC recebido (últimos 2 bytes)
-    uint16_t crc_recebido = (static_cast<uint16_t>(conteudo[conteudo.size() - 2]) << 8)
-                          |  static_cast<uint16_t>(conteudo[conteudo.size() - 1]);
-
     // Payload (entre o header e o CRC)
     std::vector<uint8_t> payload(conteudo.begin() + TAM_HEADER, conteudo.end() - TAM_CRC);
 
     // --- 6. Verificar CRC ---
-    std::vector<uint8_t> dados_para_crc(conteudo.begin(), conteudo.end() - TAM_CRC);
-    uint16_t crc_calculado = calcular_crc16(dados_para_crc);
-
-    // Adicionar lógica de CRC aqui
-    (void)crc_recebido;  // Suprimir aviso de variável não utilizada
-    (void)crc_calculado; // Suprimir aviso de variável não utilizada
+    // Converte o conteúdo inteiro (Header + Payload + CRC) para bits
+    // e usa verifica_crc() do módulo crc.h. Se o resto da divisão
+    // pelo polinômio gerador for zero, o quadro está íntegro.
+    std::vector<int> conteudo_bits = bytes_para_bits(conteudo);
+    if (!verifica_crc(conteudo_bits)) {
+        std::cerr << "[Framing] ERRO DE CRC: Quadro corrompido! Descartando." << std::endl;
+        return "";
+    }
 
     // --- 7. Retornar a mensagem extraída ---
     std::string mensagem(payload.begin(), payload.end());
