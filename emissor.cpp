@@ -1,9 +1,11 @@
 #include <iostream>
 #include <cstring>
 #include <string>
+#include <vector>
 #include <thread>
 #include <atomic>
 #include "net_compat.hpp"
+#include "framing.hpp"
 
 std::atomic<bool> executando(true); // Controle de execução da thread de recepção
 
@@ -24,12 +26,14 @@ void thread_recepcao(SOCKET sockfd) {
             }
             break; // Interrompe se houver erro ou encerramento
         }
-        buffer[bytes_recebidos] = '\0';
-        
+        // Desempacotar o quadro recebido (ACK do receptor)
+        std::vector<uint8_t> quadro_bruto(buffer, buffer + bytes_recebidos);
+        uint16_t tipo_recebido = 0;
+        std::string rec_msg = desmontar_quadro(quadro_bruto, &tipo_recebido);
 
-        
-        std::string rec_msg(buffer);
-        if (rec_msg == "ACK") {
+        if (rec_msg.empty()) {
+            std::cerr << "\n[Thread Recepção] Quadro recebido inválido ou corrompido." << std::endl;
+        } else if (rec_msg == "ACK" && tipo_recebido == TIPO_ACK) {
             std::cout << "\n[ACK] Mensagem confirmada pelo receptor!" << std::endl;
         }
         
@@ -91,14 +95,18 @@ int main(int argc, char* argv[]) {
             break;
         }
 
-        // Envia a mensagem via UDP
-        int bytes_enviados = sendto(sockfd, mensagem.c_str(), mensagem.length(), 0, 
+        // Empacotar a mensagem em um quadro (framing)
+        std::vector<uint8_t> quadro = montar_quadro(mensagem, TIPO_DATA);
+        imprimir_quadro_hex(quadro); // Depuração: exibe o quadro montado
+
+        // Envia o quadro via UDP
+        int bytes_enviados = sendto(sockfd, reinterpret_cast<const char*>(quadro.data()), quadro.size(), 0, 
                                     (const struct sockaddr*)&receiver_addr, sizeof(receiver_addr));
 
         if (bytes_enviados == SOCKET_ERROR) {
             std::cerr << "Erro ao enviar. Codigo: " << GETSOCKETERRNO() << std::endl;
         } else {
-            std::cout << "Mensagem enviada com sucesso!" << std::endl;
+            std::cout << "Quadro enviado com sucesso! (" << quadro.size() << " bytes)" << std::endl;
         }
     }
 
