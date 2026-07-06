@@ -9,8 +9,6 @@
 
 Este projeto implementa uma simulação da **Camada de Enlace de Dados** (Camada 2 do Modelo OSI) sobre uma comunicação UDP entre dois programas em C++: um **Emissor** e um **Receptor**.
 
-O objetivo é demonstrar, de forma prática, como funciona o processo de **enquadramento (framing) orientado a byte** — a técnica utilizada por protocolos reais (como HDLC e PPP) para delimitar, empacotar e verificar a integridade de dados transmitidos em uma rede.
-
 A comunicação utiliza sockets UDP como camada de transporte subjacente, e a camada de enlace é implementada inteiramente em software, simulando:
 
 - **Enquadramento** com delimitação por bytes de FLAG
