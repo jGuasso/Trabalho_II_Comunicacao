@@ -32,7 +32,8 @@ const uint16_t TIPO_ACK  = 0x0002;
 const int TAM_MAC     = 6;
 const int TAM_TIPO    = 2;
 const int TAM_CRC     = 2;
-const int TAM_HEADER  = TAM_MAC + TAM_MAC + TAM_TIPO; // 14 bytes
+const int TAM_SEQ = 1;
+const int TAM_HEADER = TAM_MAC + TAM_MAC + TAM_TIPO + TAM_SEQ; // 15 vytes pro header
 
 /* =========================================
    ENDEREÇOS MAC SIMULADOS
@@ -197,7 +198,7 @@ inline uint16_t calcular_crc16(const std::vector<uint8_t>& dados) {
  * @param tipo      Tipo do quadro (TIPO_DATA ou TIPO_ACK).
  * @return Vetor de bytes contendo o quadro completo pronto para envio.
  */
-inline std::vector<uint8_t> montar_quadro(const std::string& mensagem, uint16_t tipo = TIPO_DATA) {
+inline std::vector<uint8_t> montar_quadro(const std::string& mensagem, uint16_t tipo, uint8_t seq_ack_no = 0) {
     std::vector<uint8_t> quadro;
 
     // --- 1. Converter a mensagem em bytes (payload cru) ---
@@ -215,6 +216,9 @@ inline std::vector<uint8_t> montar_quadro(const std::string& mensagem, uint16_t 
     // Tipo (2 bytes, Big Endian)
     conteudo_interno.push_back(static_cast<uint8_t>((tipo >> 8) & 0xFF)); // Byte mais significativo
     conteudo_interno.push_back(static_cast<uint8_t>(tipo & 0xFF));        // Byte menos significativo
+
+    // número de Sequência ou ACK (1 byte)
+    conteudo_interno.push_back(seq_ack_no);
 
     // Payload cru
     conteudo_interno.insert(conteudo_interno.end(), payload.begin(), payload.end());
@@ -257,7 +261,7 @@ inline std::vector<uint8_t> montar_quadro(const std::string& mensagem, uint16_t 
  * @param tipo_recebido Ponteiro opcional para armazenar o tipo do quadro recebido.
  * @return String com a mensagem extraída, ou string vazia se o quadro for inválido.
  */
-inline std::string desmontar_quadro(const std::vector<uint8_t>& quadro_bruto, uint16_t* tipo_recebido = nullptr) {
+inline std::string desmontar_quadro(const std::vector<uint8_t>& quadro_bruto, uint16_t* tipo_recebido = nullptr, uint8_t* seq_ack_recebido = nullptr) {
     
     // --- 1. Verificar FLAGs de início e fim ---
     if (quadro_bruto.size() < 2) {
@@ -299,6 +303,10 @@ inline std::string desmontar_quadro(const std::vector<uint8_t>& quadro_bruto, ui
 
     if (tipo_recebido != nullptr) {
         *tipo_recebido = tipo;
+    }
+
+    if (seq_ack_recebido != nullptr) {
+        *seq_ack_recebido = conteudo[TAM_MAC * 2 + TAM_TIPO];
     }
 
     // Payload (entre o header e o CRC)
