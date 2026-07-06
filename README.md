@@ -267,4 +267,4 @@ Receptor pronto e aguardando pacotes na porta 8080...
 - **Build System:** CMake 3.15+
 - **Rede:** Sockets UDP (Winsock2 / POSIX)
 - **Concorrência:** `std::thread` + `std::atomic`
-- **Plataformas:** Windows (testado) / Linux / macOS (compatível via `net_compat.hpp`)
+- **Plataformas:** Windows / Linux / macOS (compatível via `net_compat.hpp`)
