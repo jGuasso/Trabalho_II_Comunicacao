@@ -1,7 +1,41 @@
 #include <iostream>
 #include <vector>
+#include <random>
 #include "net_compat.hpp"
 #include "framing.hpp"
+
+// Configuração do gerador de números aleatórios
+std::random_device rd;
+std::mt19937 gen(rd());
+std::uniform_int_distribution<> distrib_porcentagem(1, 100);
+
+/**
+ * Retorna true se o evento deve ocorrer, baseado na chance (0 a 100)
+ */
+bool deve_ocorrer(int chance) {
+    return distrib_porcentagem(gen) <= chance;
+}
+
+/**
+ * Inverte um bit aleatório do quadro para simular ruído na linha
+ */
+void simular_corrupcao(std::vector<uint8_t>& quadro, int chance_erro) {
+    if (deve_ocorrer(chance_erro) && !quadro.empty()) {
+        // Escolhe um byte aleatório do quadro
+        std::uniform_int_distribution<> distrib_byte(0, quadro.size() - 1);
+        int indice_byte = distrib_byte(gen);
+
+        // Escolhe um bit aleatório (0 a 7)
+        std::uniform_int_distribution<> distrib_bit(0, 7);
+        int indice_bit = distrib_bit(gen);
+
+        // Aplica uma máscara XOR para inverter exatamente aquele bit
+        quadro[indice_byte] ^= (1 << indice_bit);
+        
+        std::cout << "\n[SIMULACAO] Ruído injetado! Bit " << indice_bit 
+                  << " do byte " << indice_byte << " foi invertido." << std::endl;
+    }
+}
 
 int main() {
     if (!IniciarRede()) {
@@ -51,6 +85,18 @@ int main() {
 
         // Desempacotar o quadro recebido (framing)
         std::vector<uint8_t> quadro_bruto(buffer, buffer + bytes_recebidos);
+
+        int CHANCE_PERDA = 20; // 20% de chance de perder o quadro inteiro
+        int CHANCE_ERRO  = 30; // 30% de chance de corromper um bit
+
+        if (deve_ocorrer(CHANCE_PERDA)) {
+            std::cout << "\n[SIMULACAO] Quadro perdido na rede! (Ignorando pacote)" << std::endl;
+            continue; // Pula o resto do loop, agindo como se o quadro nunca tivesse chegado
+        }
+
+        // Se não foi perdido, pode ter sido corrompido
+        simular_corrupcao(quadro_bruto, CHANCE_ERRO);
+
         uint16_t tipo_recebido = 0;
         uint8_t seq_recebido = 0;
         std::string mensagem = desmontar_quadro(quadro_bruto, &tipo_recebido, &seq_recebido);
