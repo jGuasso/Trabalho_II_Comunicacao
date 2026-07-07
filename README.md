@@ -1,5 +1,10 @@
 # Trabalho II — Camada de Enlace de Dados
 
+- João Guasso
+- André Renner
+- Leonardo BrisolLa
+- Guilherme Pimentel
+
 **Disciplina:** Comunicação de Dados — 5º Semestre  
 **Tema:** Implementação de uma Camada de Enlace simulada sobre sockets UDP
 
